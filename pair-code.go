@@ -62,6 +62,15 @@ func generateCompanionEphemeralKey() (ephemeralKeyPair *keys.KeyPair, ephemeralK
 	iv := random.Bytes(16)
 	linkingCode := random.Bytes(5)
 	encodedLinkingCode = linkingBase32.EncodeToString(linkingCode)
+	// Knows patch: re-roll until the code contains at least one digit, so iOS
+	// recognizes it as a one-time code and offers keyboard autofill (it ignores
+	// all-letter codes). Purely local — the code is client-chosen, so any value
+	// is valid; the single PairPhone network call still happens once with the
+	// final code. Avg ~1.08 rolls ((23/32)^8 ≈ 7% need a re-roll).
+	for !strings.ContainsAny(encodedLinkingCode, "123456789") {
+		linkingCode = random.Bytes(5)
+		encodedLinkingCode = linkingBase32.EncodeToString(linkingCode)
+	}
 	linkCodeKey := pbkdf2.Key([]byte(encodedLinkingCode), salt, 2<<16, 32, sha256.New)
 	linkCipherBlock, _ := aes.NewCipher(linkCodeKey)
 	encryptedPubkey := ephemeralKeyPair.Pub[:]
